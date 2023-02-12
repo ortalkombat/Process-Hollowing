@@ -100,10 +100,10 @@ BOOL SetRemoteImageBase(HANDLE hProcess, DWORD new_base) {
 		}
 	}
 	
-	// Open a handle to the process with write access
+	// Open a handle to the process with write access and write the new image base to the PEB
 	HANDLE hProcessWrite = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessId(hProcess));
 	if (hProcessWrite) {
-		// Write the new image base to the PEB
+		// Pay attention that the offset for x64 architecture should be 0x10 instead of 0x08
 		bSuccess = WriteProcessMemory(hProcessWrite, (LPVOID)(pPeb + 0x08), &new_base, sizeof(new_base), NULL);
 		CloseHandle(hProcessWrite);
 	}

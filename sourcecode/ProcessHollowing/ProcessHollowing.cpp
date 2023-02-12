@@ -13,12 +13,16 @@
 #define KERNELBASE ("kernelbase.dll")
 #define SETPROCESSVALIDCALLTARGETS ("SetProcessValidCallTargets")
 #define CFG_CALL_TARGET_VALID (0x00000001)
+#define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
 
+// This definition rises redefinition exeption, it is defined somewhere else.
+/*
 typedef struct _CFG_CALL_TARGET_INFO
 {
 	ULONG_PTR	Offset;
 	ULONG_PTR	Flags;
 } CFG_CALL_TARGET_INFO, *PCFG_CALL_TARGET_INFO;
+*/
 
 typedef BOOL(WINAPI *_SetProcessValidCallTargets)(
 	HANDLE					hProcess,
@@ -76,6 +80,34 @@ void sysError(){
 		NULL);
 
 	wprintf(L"  FAILED WITH ERROR CODE: %ls\n", sysMsg);
+}
+
+BOOL SetRemoteImageBase(HANDLE hProcess, DWORD new_base) {
+	// This function was generated with the help of ChatGPT LOL
+	printf("changing PEB!\n");
+	
+	// Get the address of the PEB
+	DWORD_PTR pPeb = 0;
+	BOOL bSuccess = FALSE;
+	typedef NTSTATUS(WINAPI* _NtQueryInformationProcess)(HANDLE, UINT, PVOID, ULONG, PULONG);
+	_NtQueryInformationProcess NtQueryInformationProcess = (_NtQueryInformationProcess)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryInformationProcess");
+	if (NtQueryInformationProcess) {
+		PROCESS_BASIC_INFORMATION pbi;
+		memset(&pbi, 0, sizeof(pbi));
+		NTSTATUS status = NtQueryInformationProcess(hProcess, 0, &pbi, sizeof(pbi), NULL);
+		if (NT_SUCCESS(status)) {
+			pPeb = (DWORD_PTR)pbi.PebBaseAddress;
+		}
+	}
+	
+	// Open a handle to the process with write access
+	HANDLE hProcessWrite = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessId(hProcess));
+	if (hProcessWrite) {
+		// Write the new image base to the PEB
+		bSuccess = WriteProcessMemory(hProcessWrite, (LPVOID)(pPeb + 0x08), &new_base, sizeof(new_base), NULL);
+		CloseHandle(hProcessWrite);
+	}
+	return bSuccess;
 }
 
 BOOL SetPrivDebug(){
